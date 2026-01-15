@@ -1,0 +1,16 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using IdentityServer.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+@if (SignInManager.IsSignedIn(User))
+{
+    <form asp-area="Identity" asp-page="/Account/Logout" method="post">
+        <span>Hello, @User.Identity.Name!</span>
+        <button type="submit">Logout</button>
+    </form>
+}
+else
+{
+    <a asp-area="Identity" asp-page="/Account/Login">Login</a>
+}
