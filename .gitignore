@@ -1,0 +1,57 @@
+# Build results
+bin/
+obj/
+
+# User secrets
+secrets.json
+
+# Visual Studio files
+.vs/
+
+*.user
+*.suo
+
+# Resharper / Rider
+*.DotSettings.user
+
+# Logs
+*.log
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Publish output
+wwwroot/lib/
+wwwroot/dist/
+publish/
+*.pubxml
+*.pubxml.user
+
+# Identity scaffolding artifacts
+Areas/Identity/ScaffoldedFiles/
+Areas/Identity/Pages/_ViewImports.cshtml
+Areas/Identity/Pages/_ViewStart.cshtml
+
+# Configuration
+appsettings.Development.json
+appsettings.Local.json
+
+# Database
+*.mdf
+*.ldf
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# JetBrains Rider
+.idea/
+
+# VS Code
+.vscode/
