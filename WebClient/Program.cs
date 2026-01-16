@@ -24,6 +24,8 @@ builder.Services
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
+        options.Scope.Add("Employee/Read");
+        options.SignedOutCallbackPath = "/signout-callback-oidc";
         options.GetClaimsFromUserInfoEndpoint = true;
         options.UsePkce = true;
         options.SaveTokens = true;

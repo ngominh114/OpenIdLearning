@@ -1,8 +1,7 @@
-﻿using Azure.Core;
+﻿using IdentityServer.Constants;
 using IdentityServer.Models;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -17,13 +16,17 @@ namespace IdentityServer.Controllers
     public class AuthorizationController : Controller
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IOpenIddictScopeManager _scopeManager;
 
-        public AuthorizationController(UserManager<ApplicationUser> userManager)
+        public AuthorizationController(UserManager<ApplicationUser> userManager, IOpenIddictScopeManager scopeManager)
         {
             _userManager = userManager;
+            _scopeManager = scopeManager;
         }
 
         [HttpGet("authorize")]
+        [HttpPost("authorize")]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> Authorize()
         {
             var request = HttpContext.GetOpenIddictServerRequest()
@@ -51,7 +54,7 @@ namespace IdentityServer.Controllers
             //}
 
             // 3. Build principal for OpenIddict
-            var principal = CreateAuthorizationCodePrincipal(request, result.Principal);
+            var principal = await CreateAuthorizationCodePrincipal(request, result.Principal);
 
             // 4. Hand off to OpenIddict → issues code + redirect
             return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
@@ -83,24 +86,44 @@ namespace IdentityServer.Controllers
                 );
             }
 
-            var principal = CreateAuthorizationCodePrincipal(request, result.Principal);
+            var principal = await CreateAuthorizationCodePrincipal(request, result.Principal);
             return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
 
-        private ClaimsPrincipal CreateAuthorizationCodePrincipal(OpenIddictRequest request, ClaimsPrincipal user)
+        private async Task<ClaimsPrincipal> CreateAuthorizationCodePrincipal(OpenIddictRequest request, ClaimsPrincipal userPrincipal)
         {
             var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType,
                                               Claims.Name, Claims.Role);
+            var localUser = await _userManager.GetUserAsync(userPrincipal) ?? throw new InvalidOperationException("User not found.");
+            identity.AddClaim(new Claim(Claims.Subject, localUser.Id));
 
-            identity.AddClaim(new Claim(Claims.Subject, user.FindFirstValue(ClaimTypes.NameIdentifier)!));
-            identity.AddClaim(new Claim(Claims.Name, user.Identity!.Name ?? string.Empty));
+            foreach (var scope in request.GetScopes())
+            {
+                if (ClaimPolicies.ScopeClaimMap.TryGetValue(scope, out var claimFactory))
+                {
+                    foreach (var claim in claimFactory(localUser))
+                    {
+                        identity.AddClaim(claim);
+                    }
+                }
+            }
+
+
+            // Apply destinations
+            identity.SetDestinations(claim =>
+            {
+                return ClaimPolicies.ClaimDestinationsMap.TryGetValue(claim.Type, out var destinations)
+                    ? destinations
+                    : [];
+            });
 
             var principal = new ClaimsPrincipal(identity);
 
             // Carry over scopes/resources
             principal.SetScopes(request.GetScopes());
-            principal.SetResources("api");
+            var resources = _scopeManager.ListResourcesAsync(principal.GetScopes()).ToBlockingEnumerable();
+            principal.SetResources(resources);
 
             return principal;
         }

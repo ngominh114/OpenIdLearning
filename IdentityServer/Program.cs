@@ -1,9 +1,9 @@
+using IdentityServer.Constants;
 using IdentityServer.Data;
 using IdentityServer.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
-using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,12 +49,16 @@ builder.Services.AddOpenIddict()
     {
         options.SetAuthorizationEndpointUris("/connect/authorize");
         options.SetTokenEndpointUris("/connect/token");
+        //options.SetEndSessionEndpointUris("/connect/logout");
         options.SetUserInfoEndpointUris("/connect/userinfo");
 
         options.RegisterScopes(OpenIddictConstants.Scopes.Email,
                                OpenIddictConstants.Scopes.Profile,
-                               OpenIddictConstants.Scopes.OfflineAccess);
+                               OpenIddictConstants.Scopes.OfflineAccess,
+                               LocalScopes.EmployeeRead
+                               );
 
+        options.DisableAccessTokenEncryption();
         options.AllowAuthorizationCodeFlow()
                .RequireProofKeyForCodeExchange();
 
@@ -99,23 +103,10 @@ static async Task SeedDataAsync(WebApplication app)
     using var scope = app.Services.CreateScope();
 
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var appManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
-
-    // ---- User ----
-    if (await userManager.FindByNameAsync("test") == null)
-    {
-        var user = new ApplicationUser
-        {
-            UserName = "test",
-            Email = "test@test.com",
-            EmailConfirmed = true
-        };
-
-        await userManager.CreateAsync(user, "Test@123");
-    }
 
     // ---- Client ----
     if (await appManager.FindByClientIdAsync("web-client") == null)
@@ -133,9 +124,11 @@ static async Task SeedDataAsync(WebApplication app)
             {
                 OpenIddictConstants.Permissions.Endpoints.Authorization,
                 OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddictConstants.Permissions.Endpoints.EndSession,
                 OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                 OpenIddictConstants.Permissions.ResponseTypes.Code,
-                OpenIddictConstants.Permissions.Scopes.Profile
+                OpenIddictConstants.Permissions.Scopes.Profile,
+                OpenIddictConstants.Permissions.Prefixes.Scope + LocalScopes.EmployeeRead
             }
         });
     }
