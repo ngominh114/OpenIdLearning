@@ -4,7 +4,6 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -135,7 +134,8 @@ namespace IdentityServer.Controllers
             // Carry over scopes/resources
             principal.SetScopes(request.GetScopes());
             var resources = _scopeManager.ListResourcesAsync(principal.GetScopes()).ToBlockingEnumerable();
-            principal.SetResources(resources);
+            var resArray = resources.ToArray();
+            principal.SetResources(resArray);
 
             return principal;
         }

@@ -11,8 +11,8 @@ namespace IdentityServer.Constants
             [Claims.Name] = [Destinations.IdentityToken],
             [Claims.Email] = [Destinations.IdentityToken],
             [Claims.Role] = [Destinations.AccessToken, Destinations.IdentityToken],
-            [LocalClaims.EmployeeId] = [Destinations.IdentityToken],
-            [LocalClaims.CompanyName] = [Destinations.IdentityToken]
+            [LocalClaims.EmployeeId] = [Destinations.AccessToken, Destinations.IdentityToken],
+            [LocalClaims.CompanyName] = [Destinations.AccessToken, Destinations.IdentityToken]
         };
 
         public static Dictionary<string, Func<ApplicationUser, IEnumerable<Claim>>> ScopeClaimMap = new()
@@ -23,10 +23,13 @@ namespace IdentityServer.Constants
                 new(Claims.Email, user.Email ?? string.Empty)
             ],
 
-            ["employeeId"] = user => [new(LocalClaims.EmployeeId, user.EmployeeId ?? string.Empty)]
+            [LocalScopes.EmployeeRead] = user => [
+                new(LocalClaims.EmployeeId, user.EmployeeId ?? string.Empty),
+                new(LocalClaims.CompanyName, user.CompanyName ?? string.Empty)
+            ]
         };
     };
 
-    
+
 
 }
