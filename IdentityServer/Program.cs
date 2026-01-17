@@ -49,7 +49,7 @@ builder.Services.AddOpenIddict()
     {
         options.SetAuthorizationEndpointUris("/connect/authorize");
         options.SetTokenEndpointUris("/connect/token");
-        //options.SetEndSessionEndpointUris("/connect/logout");
+        options.SetEndSessionEndpointUris("/connect/endsession");
         options.SetUserInfoEndpointUris("/connect/userinfo");
 
         options.RegisterScopes(OpenIddictConstants.Scopes.Email,
@@ -63,7 +63,8 @@ builder.Services.AddOpenIddict()
                .RequireProofKeyForCodeExchange();
 
         options.UseAspNetCore()
-               .EnableAuthorizationEndpointPassthrough();
+               .EnableAuthorizationEndpointPassthrough()
+               .EnableEndSessionEndpointPassthrough();
 
         options.AddDevelopmentEncryptionCertificate()
                .AddDevelopmentSigningCertificate();
@@ -119,6 +120,10 @@ static async Task SeedDataAsync(WebApplication app)
             RedirectUris =
             {
                 new Uri("https://localhost:5002/signin-oidc")
+            },
+            PostLogoutRedirectUris =
+            {
+                new Uri("https://google.com/")
             },
             Permissions =
             {

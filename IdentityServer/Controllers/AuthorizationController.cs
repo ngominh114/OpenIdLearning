@@ -4,6 +4,7 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -60,36 +61,48 @@ namespace IdentityServer.Controllers
             return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
-        [HttpPost("consent")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> HandleConsent(string decision)
+        //[HttpPost("consent")]
+        //[ValidateAntiForgeryToken]
+        //public async Task<IActionResult> HandleConsent(string decision)
+        //{
+        //    var request = HttpContext.GetOpenIddictServerRequest()
+        //                 ?? throw new InvalidOperationException();
+
+        //    var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        //    if (!result.Succeeded || result.Principal == null)
+        //    {
+        //        return Challenge(IdentityConstants.ApplicationScheme);
+        //    }
+
+        //    if (decision == "deny")
+        //    {
+        //        // Return proper OAuth2 error with state
+        //        return Forbid(
+        //            new AuthenticationProperties(new Dictionary<string, string?>
+        //            {
+        //                [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
+        //                [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "User denied consent."
+        //            }),
+        //            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme
+        //        );
+        //    }
+
+        //    var principal = await CreateAuthorizationCodePrincipal(request, result.Principal);
+        //    return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        //}
+
+        [HttpGet("endsession")]
+        public async Task<IActionResult> Logout()
         {
-            var request = HttpContext.GetOpenIddictServerRequest()
-                         ?? throw new InvalidOperationException();
-
-            var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-            if (!result.Succeeded || result.Principal == null)
-            {
-                return Challenge(IdentityConstants.ApplicationScheme);
-            }
-
-            if (decision == "deny")
-            {
-                // Return proper OAuth2 error with state
-                return Forbid(
-                    new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "User denied consent."
-                    }),
-                    OpenIddictServerAspNetCoreDefaults.AuthenticationScheme
-                );
-            }
-
-            var principal = await CreateAuthorizationCodePrincipal(request, result.Principal);
-            return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+            return SignOut(
+                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                properties: new AuthenticationProperties
+                {
+                    RedirectUri = "/"
+                }
+            );
         }
-
 
         private async Task<ClaimsPrincipal> CreateAuthorizationCodePrincipal(OpenIddictRequest request, ClaimsPrincipal userPrincipal)
         {
@@ -108,7 +121,6 @@ namespace IdentityServer.Controllers
                     }
                 }
             }
-
 
             // Apply destinations
             identity.SetDestinations(claim =>

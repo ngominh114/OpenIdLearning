@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace WebClient.Pages
 {
     public class LogoutModel : PageModel
     {
-        public void OnGet()
+        public IActionResult OnGet()
         {
-            SignOut(CookieAuthenticationDefaults.AuthenticationScheme, "IdentityScheme");
+            return SignOut(CookieAuthenticationDefaults.AuthenticationScheme, "IdentityScheme");
         }
     }
 }
