@@ -2,22 +2,18 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 #nullable disable
 
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Options;
 using IdentityServer.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Logging;
+using IdentityServer.Constants;
 
 namespace IdentityServer.Areas.Identity.Pages.Account
 {
@@ -85,8 +81,14 @@ namespace IdentityServer.Areas.Identity.Pages.Account
             [Required]
             [EmailAddress]
             public string Email { get; set; }
+
+            public bool IsEmailFromExternalProvider { get; set; } = false;
+
+            [Required]
+            public string EmployeeId { get; set; }
+            public string CompanyName { get; set; }
         }
-        
+
         public IActionResult OnGet() => RedirectToPage("./Login");
 
         public IActionResult OnPost(string provider, string returnUrl = null)
@@ -125,16 +127,40 @@ namespace IdentityServer.Areas.Identity.Pages.Account
             }
             else
             {
+                if (info.Principal.HasClaim(c => c.Type == ClaimTypes.Email))
+                {
+                    var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+                    
+                    // email_verified is not provided by some provider like Facebook or Github
+                    // Only when you want to trust the provider already verify the email, then remove the code below
+                    var isEmailConfirmed = bool.Parse(info.Principal.FindFirstValue(LocalClaims.EmailVerified) ?? "false");
+                    if (!isEmailConfirmed)
+                    {
+                        ErrorMessage = $"Error during signin with {info.ProviderDisplayName}. Email is not verified by external provider.";
+                        return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                    }
+
+                    var user = await _userManager.FindByEmailAsync(email);
+                    if (user != null)
+                    {
+                        // If there is local user exist with the same email and it was confirmed
+                        // Then sign in the user
+                        await _userManager.AddLoginAsync(user, info);
+                        await _signInManager.SignInAsync(user, isPersistent: false);
+                        return LocalRedirect(returnUrl);
+                    }
+                    else
+                    {
+                        Input = new InputModel
+                        {
+                            Email = email,
+                            IsEmailFromExternalProvider = true
+                        };
+                    }
+                }
                 // If the user does not have an account, then ask the user to create an account.
                 ReturnUrl = returnUrl;
                 ProviderDisplayName = info.ProviderDisplayName;
-                if (info.Principal.HasClaim(c => c.Type == ClaimTypes.Email))
-                {
-                    Input = new InputModel
-                    {
-                        Email = info.Principal.FindFirstValue(ClaimTypes.Email)
-                    };
-                }
                 return Page();
             }
         }
@@ -152,47 +178,58 @@ namespace IdentityServer.Areas.Identity.Pages.Account
 
             if (ModelState.IsValid)
             {
-                var user = CreateUser();
-
-                await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
-                await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
-
-                var result = await _userManager.CreateAsync(user);
-                if (result.Succeeded)
+                var user = await _userManager.FindByEmailAsync(Input.Email);
+                if (user != null)
                 {
-                    result = await _userManager.AddLoginAsync(user, info);
+                    await _userManager.AddLoginAsync(user, info);
+                    await _signInManager.SignInAsync(user, isPersistent: false);
+                    return LocalRedirect(returnUrl);
+                }
+                else
+                {
+                    user = CreateUser();
+                    await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+                    await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+                    user.CompanyName = Input.CompanyName;
+                    user.EmployeeId = Input.EmployeeId;
+
+                    var result = await _userManager.CreateAsync(user);
                     if (result.Succeeded)
                     {
-                        _logger.LogInformation("User created an account using {Name} provider.", info.LoginProvider);
-
-                        var userId = await _userManager.GetUserIdAsync(user);
-                        var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-                        var callbackUrl = Url.Page(
-                            "/Account/ConfirmEmail",
-                            pageHandler: null,
-                            values: new { area = "Identity", userId = userId, code = code },
-                            protocol: Request.Scheme);
-
-                        await _emailSender.SendEmailAsync(Input.Email, "Confirm your email",
-                            $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
-
-                        // If account confirmation is required, we need to show the link if we don't have a real email sender
-                        if (_userManager.Options.SignIn.RequireConfirmedAccount)
+                        result = await _userManager.AddLoginAsync(user, info);
+                        if (result.Succeeded)
                         {
-                            return RedirectToPage("./RegisterConfirmation", new { Email = Input.Email });
-                        }
+                            _logger.LogInformation("User created an account using {Name} provider.", info.LoginProvider);
 
-                        await _signInManager.SignInAsync(user, isPersistent: false, info.LoginProvider);
-                        return LocalRedirect(returnUrl);
+                            var userId = await _userManager.GetUserIdAsync(user);
+                            var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+                            var callbackUrl = Url.Page(
+                                "/Account/ConfirmEmail",
+                                pageHandler: null,
+                                values: new { area = "Identity", userId = userId, code = code },
+                                protocol: Request.Scheme);
+
+                            await _emailSender.SendEmailAsync(Input.Email, "Confirm your email",
+                                $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+
+                            // If account confirmation is required, we need to show the link if we don't have a real email sender
+                            if (_userManager.Options.SignIn.RequireConfirmedAccount)
+                            {
+                                return RedirectToPage("./RegisterConfirmation", new { Email = Input.Email });
+                            }
+
+                            await _signInManager.SignInAsync(user, isPersistent: false, info.LoginProvider);
+                            return LocalRedirect(returnUrl);
+                        }
+                    }
+                    foreach (var error in result.Errors)
+                    {
+                        ModelState.AddModelError(string.Empty, error.Description);
                     }
                 }
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError(string.Empty, error.Description);
-                }
             }
-
             ProviderDisplayName = info.ProviderDisplayName;
             ReturnUrl = returnUrl;
             return Page();

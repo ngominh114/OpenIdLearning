@@ -1,6 +1,8 @@
 using IdentityServer.Constants;
 using IdentityServer.Data;
 using IdentityServer.Models;
+using IdentityServer.Repositories;
+using IdentityServer.Validators;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -11,6 +13,9 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
 });
+
+builder.Services.AddScoped<IApplicationUserRepository, ApplicationUserRepository>();
+builder.Services.AddScoped<IUserValidator<ApplicationUser>, ApplicationUserValidator>();
 
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -44,7 +49,6 @@ builder.Services.AddOpenIddict()
         options.UseEntityFrameworkCore()
                .UseDbContext<ApplicationDbContext>();
     })
-
     .AddServer(options =>
     {
         options.SetAuthorizationEndpointUris("/connect/authorize");
@@ -68,6 +72,29 @@ builder.Services.AddOpenIddict()
 
         options.AddDevelopmentEncryptionCertificate()
                .AddDevelopmentSigningCertificate();
+    })
+    .AddClient(options =>
+    {
+        options.AllowAuthorizationCodeFlow();
+
+        options.AddDevelopmentEncryptionCertificate()
+               .AddDevelopmentSigningCertificate();
+
+        options.UseAspNetCore()
+               .EnableRedirectionEndpointPassthrough();
+        options.UseSystemNetHttp();
+
+        options.UseWebProviders()
+               .AddGoogle(config =>
+               {
+                   config.SetRedirectUri("signin-oidc/google");
+                   config.AddScopes("openid", "email", "profile");
+               })
+               .AddFacebook(config =>
+               {
+                   config.SetRedirectUri("signin-oidc/facebook");
+                   config.AddScopes("email");
+               });
     });
 
 builder.Services.AddRazorPages();
